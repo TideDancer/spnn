@@ -67,7 +67,7 @@ def test(epoch):
 # pretrain
 trainloader = torch.utils.data.DataLoader(datasets.CIFAR10('~/data', train=True, download=True, transform=transforms.ToTensor()), batch_size=batch_size, shuffle=True)
 testloader = torch.utils.data.DataLoader(datasets.CIFAR10('~/data', train=False, download=True, transform=transforms.ToTensor()), batch_size=batch_size, shuffle=True)
-optimizer = optim.Adam(net.vgg.parameters(), lr=lr)
+optimizer = optim.Adam(net.parameters(), lr=lr)
 scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[30, 60, 90, 120], gamma=0.5)
 
 for epoch in range(150):
