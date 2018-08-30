@@ -16,7 +16,7 @@ import sys
 
 batch_size = 32
 img_size = 28
-lr = 1e-2
+lr = 1e-3
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Model
@@ -66,12 +66,12 @@ def test(epoch):
 trainloader = torch.utils.data.DataLoader(datasets.MNIST('~/data', train=True, download=True, transform=transforms.ToTensor()), batch_size=batch_size, shuffle=True)
 testloader = torch.utils.data.DataLoader(datasets.MNIST('~/data', train=False, download=True, transform=transforms.ToTensor()), batch_size=batch_size, shuffle=True)
 optimizer = optim.Adam(net.parameters(), lr=lr)
-scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[50, 100, 150, 200], gamma=0.1)
+scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[30, 60, 90, 120], gamma=0.1)
 
 # pretrain
-for epoch in range(250):
+for epoch in range(251):
     scheduler.step()
     train(epoch)
     test(epoch)
-    if epoch % 50 == 0: torch.save(net, 'pretrain/lenet5.pk')
+    if epoch % 30 == 0: torch.save(net, 'pretrain/lenet5.pk')
 

@@ -6,22 +6,24 @@ import torch.nn.functional as F
 class LENET31(nn.Module):
     def __init__(self, _img_size, _out_size):
         super().__init__()
-        self.fc = nn.Sequential(nn.Linear(_img_size*_img_size, 300), nn.ReLU(), nn.Linear(300,100), nn.ReLU(), nn.Linear(100, _out_size), nn.Softmax())
+        self.fc = nn.Sequential(nn.Linear(_img_size*_img_size, 300), nn.ReLU(), nn.Linear(300,100), nn.ReLU(), nn.Linear(100, _out_size))
         self.input_size = _img_size
         self.output_size = _out_size
     def forward(self, x):
         x = x.view(x.shape[0],-1)
         x = self.fc(x)
-        return x
+        return F.softmax(x)
 
 class LENET31_neuron(nn.Module):
     def __init__(self, _lenet31, _mask_list, _mask_layerid):
         super().__init__()
-        self.lenet = _lenet
+        self.lenet = _lenet31
         self.mask = nn.ParameterList(map(lambda e: nn.Parameter(e), _mask_list)) 
         self.mask_layerid = _mask_layerid
     def forward(self, x):
-        k = 0
+        x = x.view(x.shape[0], -1)
+        x *= self.mask[0]
+        k = 1
         for i in range(len(self.lenet.fc)):
           x = self.lenet.fc[i](x)
           if i in self.mask_layerid: 
@@ -32,14 +34,15 @@ class LENET31_neuron(nn.Module):
 class LENET31_weight(nn.Module):
     def __init__(self, _lenet31, _mask_list, _mask_layerid):
         super().__init__()
-        self.lenet = _lenet
-        self.mask = nn.ParameterList(map(lambda e: nn.Parameter(e), _mask_list)) 
+        self.lenet = _lenet31
+        self.mask = nn.ParameterList(list(map(lambda e: nn.Parameter(e), _mask_list)))
         self.mask_layerid = _mask_layerid
     def forward(self, x):
+        x = x.view(x.shape[0], -1)
         k = 0
         for i in range(len(self.lenet.fc)):
           if i in self.mask_layerid: 
-            x = F.linear(self.lenet.fc[i].weight*self.mask[k], self.lenet.fc[i].bias)
+            x = F.linear(x, self.lenet.fc[i].weight*self.mask[k], self.lenet.fc[i].bias)
             k += 1
           else:
             x = self.lenet.fc[i](x)
@@ -49,7 +52,7 @@ class LENET5(nn.Module):
     def __init__(self, _img_size, _in_channel, _out_size):
         super().__init__()
         self.features = nn.Sequential(nn.Conv2d(_in_channel,20,5), nn.ReLU(), nn.MaxPool2d(2), nn.Conv2d(20,50,5), nn.ReLU(), nn.MaxPool2d(2))
-        self.classifier = nn.Sequential(nn.Linear(800,500), nn.ReLU(), nn.Linear(500, _out_size), nn.Softmax())
+        self.classifier = nn.Sequential(nn.Linear(800,500), nn.ReLU(), nn.Linear(500, _out_size))
         self.input_channel = _in_channel
         self.input_size = _img_size
         self.output_size = _out_size
@@ -57,12 +60,12 @@ class LENET5(nn.Module):
         x = self.features(x)
         x = x.view(x.shape[0], -1)
         x = self.classifier(x)
-        return x
+        return F.softmax(x)
 
 class LENET5_weight(nn.Module):
     def __init__(self, _lenet5, _mask_list, _mask_featuresid, _mask_classifierid):
         super().__init__()
-        self.lenet = _lenet
+        self.lenet = _lenet5
         self.mask = nn.ParameterList(map(lambda e: nn.Parameter(e), _mask_list)) 
         self.mask_featuresid = _mask_featuresid
         self.mask_classifierid = _mask_classifierid
@@ -77,7 +80,7 @@ class LENET5_weight(nn.Module):
         x = x.view(x.shape[0], -1)
         for i in range(len(self.lenet.classifier)):
           if i in self.mask_classifierid: 
-            x = F.linear(self.lenet.classifier[i].weight*self.mask[k], self.lenet.classifier[i].bias)
+            x = F.linear(x, self.lenet.classifier[i].weight*self.mask[k], self.lenet.classifier[i].bias)
             k += 1
           else:
             x = self.lenet.classifier[i](x)
@@ -86,17 +89,20 @@ class LENET5_weight(nn.Module):
 class LENET5_neuron(nn.Module):
     def __init__(self, _lenet5, _mask_list, _mask_featuresid, _mask_classifierid):
         super().__init__()
-        self.lenet = _lenet
+        self.lenet = _lenet5
         self.mask = nn.ParameterList(map(lambda e: nn.Parameter(e), _mask_list)) 
-        self.mask_layerid = _mask_layerid
+        self.mask_featuresid = _mask_featuresid
+        self.mask_classifierid = _mask_classifierid
     def forward(self, x):
         k = 0
         for i in range(len(self.lenet.features)):
           x = self.lenet.features[i](x)
           if i in self.mask_featuresid: 
-            x *= self.mask[k]
+            x *= self.mask[k].view(-1,1).expand(-1,x.shape[2]*x.shape[3]).view(-1,x.shape[2],x.shape[3])
             k += 1
         x = x.view(x.shape[0], -1)
+        x *= self.mask[k]
+        k += 1
         for i in range(len(self.lenet.classifier)):
           x = self.lenet.classifier[i](x)
           if i in self.mask_classifierid: 
