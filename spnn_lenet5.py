@@ -40,13 +40,13 @@ net = net.to(device)
 
 loss_ce = nn.CrossEntropyLoss()
 def loss_mask(prediction, mask):
-  alpha = 1e-8
+  alpha = 1e-9
   loss_l1 = sum(list(map(lambda e: torch.sum(torch.abs(e)), mask)))
   # loss_out = -sum([prediction[i,label[i]] for i in range(label.shape[0])])
   loss_out = -sum(sum(prediction))/batch_size
   # loss_out = -sum(prediction[:,0])
-  # return alpha*loss_l1 + loss_out
-  return loss_out
+  return alpha*loss_l1 + loss_out
+  # return loss_out
 
 # Training
 def train(epoch):
@@ -66,7 +66,7 @@ def train(epoch):
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
     print('forward train acc: ',correct/total)
-    # torch.save(net, 'model/lenet31weight.pk')
+    return correct/total
 
 class ZeroOneClipper(object):
     def __init__(self, frequency=5):
@@ -78,11 +78,25 @@ class ZeroOneClipper(object):
             w.clamp_(0, 1)
 clipper = ZeroOneClipper()
 
+class RoundClipper(object):
+    def __init__(self, ceillist, floorlist):
+        self.ceillist = ceillist
+        self.floorlist = floorlist
+    def __call__(self, module):
+        if hasattr(module, 'mask'):
+          for i in range(n_layer):
+            w = module.mask[i].data
+            if i in self.ceillist: w.ceil_()
+            elif i in self.floorlist: w.floor_()
+            else: w.round_()
+rounder = RoundClipper([0,1], [])
+
 def train_back(epoch):
     net.train()
     train_loss = 0
     correct = 0
     total = 0
+    loss_prev = -10000
     for i in range(100000):
         inputs = torch.rand((batch_size, 1, img_size, img_size)).to(device)
         optimizer.zero_grad()
@@ -97,8 +111,11 @@ def train_back(epoch):
         optimizer.step()
         net.apply(clipper)
         train_loss += loss.item()
-        if loss.item() < 1e-2: break
+        # print(abs(loss.item() - loss_prev))
+        if abs(loss.item() - loss_prev) < 1e-3: break
+        loss_prev = loss.item()
     print('backward train loss: ',train_loss)
+    net.apply(rounder)
     return train_loss
         
 def test(epoch):
@@ -120,47 +137,53 @@ def test(epoch):
 
 trainloader = torch.utils.data.DataLoader(datasets.MNIST('~/data', train=True, download=True, transform=transforms.ToTensor()), batch_size=batch_size, shuffle=True)
 testloader = torch.utils.data.DataLoader(datasets.MNIST('~/data', train=False, download=True, transform=transforms.ToTensor()), batch_size=batch_size, shuffle=True)
-targetacc = 0.98
+targetacc = 0.99
 print(net)
 
-targets = [10, 20, 300, 50]
-for layerid in range(n_layer):
-    if os.path.isfile('checkpoint/spnn_lenet5_neuron_'+str(layerid)+'.pk'):
-        net = torch.load('checkpoint/spnn_lenet5_neuron_'+str(layerid)+'.pk')
-        continue
-    print("============> optimize layer ", layerid, "<============")
-    for epoch in range(10000):
-        optimizer = optim.Adam(net.lenet.parameters(), lr=lr)
-        cnt = 0
-        scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[30, 60, 90, 120], gamma=0.5)
-        while(test(epoch) < targetacc and cnt < 150): 
-          scheduler.step()
-          train(epoch)
-          cnt += 1
-    
-        optimizer = optim.Adam([net.mask[layerid]], lr=1e-3)
-        back_loss_previous = train_back(epoch)
-        
-        # if epoch % 1 == 0:
-        n_total = 0
-        nonzero_total = 0
-        for i in range(n_layer):
-          n = net.mask[i].view(-1,).shape[0]
-          nonzero = net.mask[i].data.nonzero().shape[0]
-          n_total += n
-          nonzero_total += nonzero
-          print('layer ',i,' : ',float(n-nonzero)/n, ' ==> ', nonzero,'/',n)
-        # print('compression: ',float(n_total/nonzero_total)) 
-         
-        if net.mask[layerid].data.nonzero().shape[0] < targets[layerid]: 
-          torch.save(net, 'checkpoint/spnn_lenet5_neuron_'+str(layerid)+'.pk')
-          break
+targets = [10, 20, 300, 300]
+for epoch in range(10000):
+    optimizer = optim.Adam(net.lenet.parameters(), lr=lr)
+    cnt = 0
+    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[20, 40, 60, 80], gamma=0.1)
+    forward_acc = 0
+    while(test(epoch) < targetacc and cnt < 100 and forward_acc < 1.0): 
+      scheduler.step()
+      forward_acc = train(epoch)
+      cnt += 1
 
+    optid = []
+    for layerid in range(n_layer):
+      if net.mask[layerid].data.nonzero().shape[0] < targets[layerid]: continue
+      else: optid.append(layerid)
+    print(optid)
+    if len(optid) == 0: break
+
+    optimizer = optim.Adam([net.mask[i] for i in optid], lr=1e-2)
+    back_loss_previous = train_back(epoch)
+    
+    n_total = 0
+    nonzero_total = 0
+    for i in range(n_layer):
+      n = net.mask[i].view(-1,).shape[0]
+      nonzero = net.mask[i].data.nonzero().shape[0]
+      n_total += n
+      nonzero_total += nonzero
+      print('layer ',i,' : ',float(n-nonzero)/n, ' ==> ', nonzero,'/',n)
+         
 #post train
-scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[20, 40, 60, 80], gamma=0.5)
+torch.save(net, 'checkpoint/spnn_lenet5.pk')
+print("-------------- post train ------------")
+scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 20, 30, 40], gamma=0.1)
 optimizer = optim.Adam(net.lenet.parameters(), lr=lr/10)
-for epoch in range(100):
+for epoch in range(50):
+    scheduler.step()
     train(epoch)
     test(epoch)
-
-
+print("------------- sparsity -----------")
+for i in range(n_layer):
+  n = net.mask[i].view(-1,).shape[0]
+  nonzero = net.mask[i].data.nonzero().shape[0]
+  n_total += n
+  nonzero_total += nonzero
+  print('layer ',i,' : ',float(n-nonzero)/n, ' ==> ', nonzero,'/',n)
+ 
