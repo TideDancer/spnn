@@ -48,6 +48,34 @@ class LENET31_weight(nn.Module):
             x = self.lenet.fc[i](x)
         return x, self.mask
 
+class LENET53(nn.Module):
+    def __init__(self, _img_size, _out_size):
+        super().__init__()
+        self.fc = nn.Sequential(nn.Linear(_img_size*_img_size, 500), nn.ReLU(), nn.Linear(500,300), nn.ReLU(), nn.Linear(300, _out_size))
+        self.input_size = _img_size
+        self.output_size = _out_size
+    def forward(self, x):
+        x = x.view(x.shape[0],-1)
+        x = self.fc(x)
+        return F.softmax(x)
+
+class LENET53_neuron(nn.Module):
+    def __init__(self, _lenet53, _mask_list, _mask_layerid):
+        super().__init__()
+        self.lenet = _lenet53
+        self.mask = nn.ParameterList(map(lambda e: nn.Parameter(e), _mask_list)) 
+        self.mask_layerid = _mask_layerid
+    def forward(self, x):
+        x = x.view(x.shape[0], -1)
+        x *= self.mask[0]
+        k = 1
+        for i in range(len(self.lenet.fc)):
+          x = self.lenet.fc[i](x)
+          if i in self.mask_layerid: 
+            x *= self.mask[k]
+            k += 1
+        return x, self.mask
+
 class LENET5(nn.Module):
     def __init__(self, _img_size, _in_channel, _out_size):
         super().__init__()
@@ -110,61 +138,26 @@ class LENET5_neuron(nn.Module):
             k += 1
         return x, self.mask
 
-class VGGLIKE_mask(nn.Module):
-    def __init__(self, _conv_layerid, _linear_layerid, _n_feature, _n_classifier,  _vgg, _mask_list):
+class VGGLIKE_neuron(nn.Module):
+    def __init__(self, _vgg, _mask_list, _mask_featuresid):#, _mask_classifierid):
         super().__init__()
-        self.mask = nn.ParameterList(map(lambda e: nn.Parameter(e), _mask_list)) 
-        self.conv_layerid = _conv_layerid
-        self.linear_layerid = _linear_layerid
-        self.n_feature = _n_feature
-        self.n_classifier = _n_classifier
         self.vgg = _vgg
-    def forward(self, x):
-        k = 0
-        for i in range(self.n_feature):
-          if i in self.conv_layerid: 
-            x = F.conv2d(x, self.vgg.features[i].weight*self.mask[k], self.vgg.features[i].bias, padding=1)
-            k += 1
-          else:
-            x = self.vgg.features[i](x)
-        x = x.view(x.shape[0], -1)
-        for i in range(self.n_classifier):
-          if i in self.linear_layerid: 
-            x = F.linear(x, self.vgg.classifier[i].weight*self.mask[k], self.vgg.classifier[i].bias)
-            k += 1
-          else:
-            x = self.vgg.classifier[i](x)
-        return x, self.mask
-
-class ALEXNET_mask(nn.Module):
-    def __init__(self, _alexnet, _mask_list, _conv_layerid=[0,3,6,8,10], _linear_layerid=[1,4,6], _n_feature=13, _n_classifier=7):
-        super().__init__()
         self.mask = nn.ParameterList(map(lambda e: nn.Parameter(e), _mask_list)) 
-        self.conv_layerid = _conv_layerid
-        self.linear_layerid = _linear_layerid
-        self.n_feature = _n_feature
-        self.n_classifier = _n_classifier
-        self.alexnet = _alexnet
+        self.mask_featuresid = _mask_featuresid
+        # self.mask_classifierid = _mask_classifierid
     def forward(self, x):
         k = 0
-        for i in range(self.n_feature):
-          if i in self.conv_layerid: 
-            if i == 0:
-              x = F.conv2d(x, self.alexnet.features[i].weight*self.mask[k], self.alexnet.features[i].bias, stride=4, padding=2)
-            elif i == 3:
-              x = F.conv2d(x, self.alexnet.features[i].weight*self.mask[k], self.alexnet.features[i].bias, padding=2)
-            else:
-              x = F.conv2d(x, self.alexnet.features[i].weight*self.mask[k], self.alexnet.features[i].bias, padding=1)
+        for i in range(len(self.vgg.features)):
+          x = self.vgg.features[i](x)
+          if i in self.mask_featuresid: 
+            x *= self.mask[k].view(-1,1).expand(-1,x.shape[2]*x.shape[3]).view(-1,x.shape[2],x.shape[3])
             k += 1
-          else:
-            x = self.alexnet.features[i](x)
         x = x.view(x.shape[0], -1)
-        for i in range(self.n_classifier):
-          if i in self.linear_layerid: 
-            x = F.linear(x, self.alexnet.classifier[i].weight*self.mask[k], self.alexnet.classifier[i].bias)
-            k += 1
-          else:
-            x = self.alexnet.classifier[i](x)
+        x *= self.mask[k]
+        k += 1
+        x = self.vgg.classifier(x)
+        # x *= self.mask[k]
+        # k += 1
         return x, self.mask
 
 def test():

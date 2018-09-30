@@ -14,15 +14,15 @@ import Model
 import numpy as np
 import sys
 
-batch_size = 32
+batch_size = 8
 img_size = 28
-lr = 1e-3
+lr = 1e-4
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Model
 net = Model.LENET31(28, 10)
-# net = torch.load('pretrain/lenet31.pk')
-net = net.to(device)
+net = torch.load('pretrain/lenet31.pk')
+# net = net.to(device)
 
 # loss
 loss_ce = nn.CrossEntropyLoss()
@@ -69,9 +69,9 @@ optimizer = optim.Adam(net.parameters(), lr=lr)
 scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[30, 60, 90, 120], gamma=0.1)
 
 # pretrain
-for epoch in range(251):
+for epoch in range(21):
     scheduler.step()
     train(epoch)
     test(epoch)
-    if epoch % 30 == 0: torch.save(net, 'pretrain/lenet31.pk')
-
+    if epoch % 30 == 0 and epoch > 0: torch.save(net, 'pretrain/lenet31.pk')
+torch.save(net, 'pretrain/lenet31.pk')

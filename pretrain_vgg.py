@@ -22,8 +22,8 @@ lr = 1e-3
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Model
-net = vgg.VGG('VGG16')
-# net = torch.load('pretrain/vgg16.pk')
+# net = vgg.VGG('VGG16_15')
+net = torch.load('pretrain/vgg16_15_nodrop.pk')
 net = net.to(device)
 
 loss_ce = nn.CrossEntropyLoss()
@@ -75,6 +75,6 @@ for epoch in range(150):
     train(epoch)
     test(epoch)
     if epoch % 30 == 0: 
-        torch.save(net, 'pretrain/vgg16.pk')
+        torch.save(net, 'pretrain/vgg16_15_nodrop.pk')
         print('epoch: ', epoch)
 

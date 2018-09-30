@@ -7,6 +7,7 @@ cfg = {
     'VGG11': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
     'VGG13': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
     'VGG16': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
+    'VGG16_15': [96, 96, 'M', 192, 192, 'M', 384, 384, 384, 'M', 768, 768, 768, 'M', 768, 768, 768, 'M'],
     'VGG19': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
 }
 
@@ -15,7 +16,8 @@ class VGG(nn.Module):
     def __init__(self, vgg_name):
         super(VGG, self).__init__()
         self.features = self._make_layers(cfg[vgg_name])
-        self.classifier = nn.Sequential(nn.Linear(512, 512), nn.ReLU(inplace=True), nn.Dropout(0.5), nn.Linear(512, 10))
+        # self.classifier = nn.Sequential(nn.Linear(768, 768), nn.ReLU(inplace=True), nn.Dropout(0.5), nn.Linear(768, 10))
+        self.classifier = nn.Sequential(nn.Linear(768, 768), nn.ReLU(inplace=True), nn.Linear(768, 10))
 
     def forward(self, x):
         out = self.features(x)
