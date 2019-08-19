@@ -1,0 +1,58 @@
+vgg10_091.pk,  attack-bound 1e-2
+BIML2 7958/10000
+BIML1 8391/10000
+PGD   7955/10000
+DeepFool 9012/10000
+FGSM  9007/10000
+CWL2  4035/4455
+
+vgg10_090.pk
+BIML1 0
+PGD 8576
+DeepFool 995
+
+vgg10_orig.pk, 	attack-bound 1e-2
+BIML2 8129/10000
+BIML1 8916/10000
+PGD 8389/10000
+DeepFool 9136/10000
+FGSM  8979/10000
+CWl2  4271/4651
+
+------------------------------------------
+vgg15_compress
+BIML1 9100
+BIML2 8969
+PGD 8816
+DeepFool 9084
+FGSM  9116  092: 9176
+
+vgg15_orig.pk, 	
+BIML2 2471/10000
+BIML1 2475/10000
+PGD 2463/10000
+DeepFool 2454/10000
+FGSM  2475/10000
+CWl2  2480
+-----
+vgg15.pk pretrain
+BIML1 8626
+BIML2 7988
+FGSM 9141
+DeepFool 9173
+PGD 7845
+
+-----------------------------------------
+lenet5 compressed
+BIML2 1595
+BIML1 2542
+FGSM 7090
+Deepfool 8798
+PGD 902
+
+lenet5 orig
+PGD 21,        new 42
+FGSM 21,       new 210
+DeepFool
+BIM
+
